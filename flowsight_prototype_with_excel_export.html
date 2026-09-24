@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FlowSight — Cash flow forecasting (prototype)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --ink:#1C2B39; --ink-soft:#2A3D4F; --paper:#F6F3EC; --paper-raised:#FFFFFF;
+    --line:#DAD4C4; --slate:#5B6670;
+    --teal:#1F7A6C; --teal-bg:#E2F0EC;
+    --amber:#C97A3D; --amber-bg:#F7E9DB;
+    --brick:#A23E34; --brick-bg:#F3DEDA;
+    --coral:#E8734F; --sky:#3E8FB0; --sun:#E8B84B; --plum:#8B5D8F;
+    --r:14px; --r-sm:9px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;font-family:'Inter',sans-serif;color:var(--ink);
+    background-color:var(--paper);
+    background-image:
+      radial-gradient(circle at 8% 12%, rgba(31,122,108,0.10) 0, transparent 42%),
+      radial-gradient(circle at 92% 8%, rgba(232,115,79,0.10) 0, transparent 40%),
+      radial-gradient(circle at 85% 78%, rgba(62,143,176,0.09) 0, transparent 40%),
+      radial-gradient(circle at 12% 85%, rgba(232,184,75,0.12) 0, transparent 38%),
+      radial-gradient(circle at 50% 50%, rgba(139,93,143,0.05) 0, transparent 55%);
+    background-attachment:fixed;
+  }
+  .app{display:flex;min-height:100vh;}
+
+  .sidebar{width:230px;flex-shrink:0;background:var(--ink);color:#EDE7D8;display:flex;flex-direction:column;padding:28px 0;border-top:4px solid transparent;border-image:linear-gradient(90deg,var(--teal),var(--coral),var(--sun),var(--sky)) 1;}
+  .brand{font-family:'Fraunces',serif;font-weight:600;font-size:22px;padding:0 24px 28px 24px;border-bottom:1px solid rgba(255,255,255,0.12);margin-bottom:8px;}
+  .brand span{color:#8FC9BC;}
+  .nav-item{display:flex;align-items:center;gap:12px;padding:13px 24px;cursor:pointer;font-size:14px;color:#C7C0AE;border-left:3px solid transparent;border-radius:0 var(--r-sm) var(--r-sm) 0;transition:all .15s;}
+  .nav-item:hover{color:#fff;background:rgba(255,255,255,0.04);}
+  .nav-item.active{color:#fff;border-left-color:#8FC9BC;background:rgba(143,201,188,0.14);}
+  .nav-icon{width:16px;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:13px;}
+  .sidebar-foot{margin-top:auto;padding:18px 24px 0 24px;border-top:1px solid rgba(255,255,255,0.12);font-size:12px;color:#8C8675;line-height:1.5;}
+
+  .main{flex:1;padding:40px 48px;max-width:1040px;}
+  .proto-banner{background:var(--teal-bg);color:var(--teal);font-size:12.5px;padding:10px 16px;margin-bottom:24px;font-family:'IBM Plex Mono',monospace;border:1px solid #1F7A6C33;border-radius:var(--r-sm);}
+  .page-head{margin-bottom:32px;}
+  .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--slate);margin:0 0 6px 0;}
+  h1{font-family:'Fraunces',serif;font-weight:500;font-size:30px;margin:0;color:var(--ink);}
+  .sub{color:var(--slate);font-size:14px;margin-top:6px;}
+
+  .hero{border-bottom:1px solid var(--line);padding-bottom:24px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:20px;}
+  .hero-figure .label{font-size:13px;color:var(--slate);margin-bottom:4px;}
+  .hero-figure .amount{font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:44px;letter-spacing:-1px;}
+  .hero-status{display:flex;align-items:center;gap:8px;font-size:13px;padding:6px 12px;font-family:'IBM Plex Mono',monospace;}
+
+  .scenario-toggle{display:inline-flex;border:1px solid var(--line);background:var(--paper-raised);margin-bottom:28px;border-radius:var(--r-sm);overflow:hidden;}
+  .scenario-btn{font-family:'IBM Plex Mono',monospace;font-size:12px;padding:8px 14px;cursor:pointer;border:none;border-right:1px solid var(--line);background:transparent;color:var(--slate);}
+  .scenario-btn:last-child{border-right:none;}
+  .scenario-btn.active{background:var(--ink);color:#F6F3EC;}
+
+  .stat-row{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:36px;}
+  .stat{background:var(--paper-raised);border:1px solid var(--line);padding:16px 18px;border-radius:var(--r-sm);box-shadow:0 2px 8px rgba(28,43,57,0.04);}
+  .stat .label{font-size:12px;color:var(--slate);margin-bottom:6px;}
+  .stat .val{font-family:'IBM Plex Mono',monospace;font-weight:500;font-size:20px;}
+  .val.pos{color:var(--teal);} .val.neg{color:var(--brick);}
+
+  .chart-section{margin-bottom:36px;}
+  .section-title{font-family:'Fraunces',serif;font-size:17px;margin:0 0 14px 0;}
+  .chart-wrap{background:var(--paper-raised);border:1px solid var(--line);padding:20px;border-radius:var(--r);box-shadow:0 2px 10px rgba(28,43,57,0.05);}
+  .legend{display:flex;gap:18px;margin-top:8px;font-size:11px;color:var(--slate);font-family:'IBM Plex Mono',monospace;}
+  .legend span.sw{display:inline-block;width:10px;height:2px;margin-right:5px;vertical-align:middle;}
+
+  .ledger{border:1px solid var(--line);background:var(--paper-raised);border-radius:var(--r);overflow:hidden;box-shadow:0 2px 10px rgba(28,43,57,0.05);}
+  .ledger-row{display:grid;grid-template-columns:100px 1fr 120px 90px;align-items:center;padding:11px 18px;border-bottom:1px solid var(--line);font-size:13px;gap:12px;}
+  .ledger-row:last-child{border-bottom:none;}
+  .ledger-row.head{font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--slate);background:#F1EDE2;}
+  .ledger-week{font-family:'IBM Plex Mono',monospace;color:var(--slate);}
+  .ledger-bar-track{height:8px;background:#EDE9DC;border-radius:4px;overflow:hidden;}
+  .ledger-bar{height:100%;border-radius:4px;}
+  .ledger-amount{font-family:'IBM Plex Mono',monospace;text-align:right;font-weight:500;}
+  .ledger-tag{font-size:11px;text-align:center;padding:3px 8px;font-family:'IBM Plex Mono',monospace;border-radius:20px;}
+
+  .form-card{background:var(--paper-raised);border:1px solid var(--line);padding:26px 30px;margin-bottom:20px;max-width:640px;border-radius:var(--r);box-shadow:0 2px 10px rgba(28,43,57,0.05);}
+  .form-row{display:flex;flex-direction:column;margin-bottom:18px;}
+  .form-row label{font-size:13px;color:var(--ink-soft);margin-bottom:6px;font-weight:500;}
+  .form-row .hint{font-size:12px;color:var(--slate);margin-top:5px;}
+  input[type=text],input[type=number],input[type=date],select{font-family:'Inter',sans-serif;font-size:14px;padding:9px 11px;border:1px solid var(--line);background:#FCFAF4;color:var(--ink);width:100%;border-radius:var(--r-sm);}
+  input:focus,select:focus{outline:2px solid var(--teal);outline-offset:1px;border-color:var(--teal);}
+  .form-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+  .btn{font-family:'IBM Plex Mono',monospace;font-size:13px;padding:10px 20px;border:1px solid var(--ink);background:var(--ink);color:#F6F3EC;cursor:pointer;border-radius:var(--r-sm);}
+  .btn:hover{background:var(--ink-soft);transform:translateY(-1px);}
+  .btn.secondary{background:transparent;color:var(--ink);}
+  .btn.secondary:hover{background:#EFEADC;}
+  .toggle-row{display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid var(--line);}
+  .toggle-row:last-child{border-bottom:none;}
+  .toggle-row .t-label{font-size:14px;font-weight:500;}
+  .toggle-row .t-sub{font-size:12px;color:var(--slate);margin-top:2px;}
+  .switch{position:relative;width:40px;height:22px;background:var(--line);border-radius:11px;cursor:pointer;flex-shrink:0;}
+  .switch.on{background:var(--teal);}
+  .switch .dot{position:absolute;top:2px;left:2px;width:18px;height:18px;background:#fff;border-radius:50%;transition:left .15s;}
+  .switch.on .dot{left:20px;}
+
+  .recent-list{background:var(--paper-raised);border:1px solid var(--line);}
+  .recent-item{display:flex;justify-content:space-between;padding:11px 18px;border-bottom:1px solid var(--line);font-size:13px;}
+  .recent-item:last-child{border-bottom:none;}
+  .recent-item .desc{color:var(--ink-soft);}
+  .recent-item .amt{font-family:'IBM Plex Mono',monospace;font-weight:500;}
+  .amt.in{color:var(--teal);} .amt.out{color:var(--brick);}
+
+  .data-note{font-size:12px;color:var(--slate);margin-top:30px;line-height:1.6;border-top:1px solid var(--line);padding-top:16px;}
+
+  .period-toggle{display:inline-flex;border:1px solid var(--line);margin-bottom:14px;border-radius:var(--r-sm);overflow:hidden;background:var(--paper-raised);}
+  .period-btn{font-family:'IBM Plex Mono',monospace;font-size:11.5px;padding:7px 12px;cursor:pointer;border:none;border-right:1px solid var(--line);background:transparent;color:var(--slate);}
+  .period-btn:last-child{border-right:none;}
+  .period-btn.active{background:var(--teal);color:#fff;}
+  .dropzone:hover,.dropzone.drag{border-color:var(--teal);background:var(--teal-bg);}
+  .dropzone{border-radius:var(--r);}
+  .dropzone .dz-icon{font-family:'IBM Plex Mono',monospace;font-size:22px;color:var(--teal);margin-bottom:10px;}
+  .dropzone .dz-title{font-size:15px;font-weight:500;color:var(--ink);margin-bottom:4px;}
+  .dropzone .dz-sub{font-size:12.5px;color:var(--slate);}
+  #billFileInput{display:none;}
+
+  .scan-status{max-width:640px;background:var(--paper-raised);border:1px solid var(--line);padding:22px 26px;display:flex;align-items:center;gap:14px;border-radius:var(--r);}
+  .spinner{width:18px;height:18px;border:2.5px solid var(--line);border-top-color:var(--teal);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .scan-status .st-text{font-size:13.5px;color:var(--ink-soft);}
+  .scan-status .st-sub{font-size:12px;color:var(--slate);margin-top:2px;}
+
+  .extract-card{max-width:640px;background:var(--paper-raised);border:1px solid var(--teal);padding:22px 26px;margin-bottom:20px;border-radius:var(--r);box-shadow:0 3px 14px rgba(31,122,108,0.10);}
+  .extract-badge{display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.5px;color:var(--teal);background:var(--teal-bg);padding:3px 9px;margin-bottom:14px;}
+
+  .ai-banner{background:var(--paper-raised);border:1px solid var(--line);border-left:3px solid var(--teal);padding:14px 18px;font-size:12.5px;color:var(--slate);margin-bottom:24px;line-height:1.6;border-radius:0 var(--r-sm) var(--r-sm) 0;}
+  .ai-badge{font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.5px;color:var(--teal);background:var(--teal-bg);padding:2px 7px;margin-right:8px;}
+  .insight-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:28px;}
+  .insight-card{background:var(--paper-raised);border:1px solid var(--line);border-top:3px solid var(--teal);padding:18px 20px;border-radius:var(--r);box-shadow:0 2px 10px rgba(28,43,57,0.05);}
+  .insight-card.warn{border-top-color:var(--amber);}
+  .insight-card.danger{border-top-color:var(--brick);}
+  .insight-card .ic-horizon{font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--slate);margin-bottom:8px;}
+  .insight-card .ic-amount{font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:24px;margin-bottom:10px;}
+  .insight-card .ic-text{font-size:13px;line-height:1.55;color:var(--ink-soft);}
+  .insight-summary{max-width:100%;background:var(--ink);color:#EDE7D8;padding:20px 24px;margin-bottom:28px;border-radius:var(--r);}
+  .insight-summary .is-label{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#8FC9BC;margin-bottom:8px;}
+  .insight-summary .is-text{font-size:14.5px;line-height:1.6;}
+
+  @media(max-width:760px){
+    .insight-cards{grid-template-columns:1fr;}
+  }
+
+  @media(max-width:760px){
+    .app{flex-direction:column;}
+    .sidebar{width:100%;flex-direction:row;overflow-x:auto;padding:14px 0;}
+    .brand{display:none;} .sidebar-foot{display:none;}
+    .stat-row{grid-template-columns:1fr;}
+    .form-grid-2{grid-template-columns:1fr;}
+    .ledger-row{grid-template-columns:70px 1fr 90px;}
+    .ledger-row .ledger-tag{display:none;}
+    .main{padding:24px;}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="sidebar">
+    <div class="brand">flow<span>sight</span></div>
+    <div class="nav-item active" data-view="dashboard"><span class="nav-icon">📊</span> Dashboard</div>
+    <div class="nav-item" data-view="upload"><span class="nav-icon">🧾</span> Upload bill</div>
+    <div class="nav-item" data-view="input"><span class="nav-icon">✏️</span> Add transaction</div>
+    <div class="nav-item" data-view="insights"><span class="nav-icon">💡</span> AI insights</div>
+    <div class="nav-item" data-view="settings"><span class="nav-icon">⚙️</span> Settings</div>
+    <div class="sidebar-foot">Forecast model based on rolling 13-week cash position. Prototype — sample data only.</div>
+  </div>
+
+  <div class="main">
+    <div class="proto-banner">Demo prototype — loaded with sample data only. Please do not enter any real business or financial information. Explore the Dashboard, try the scenario toggle, add a test transaction, and look through Settings — there's no right or wrong way to use it.</div>
+
+    <!-- DASHBOARD -->
+    <div class="view" id="view-dashboard">
+      <div class="page-head">
+        <p class="eyebrow">Cash position — Riverside Wines &amp; Spirits (sample data)</p>
+        <h1>Dashboard</h1>
+        <p class="sub">Week commencing 29 Jun 2026</p>
+        <button class="btn secondary" style="margin-top:14px;" onclick="exportToExcel()">⬇ Download data (Excel)</button>
+      </div>
+
+      <div class="hero">
+        <div class="hero-figure">
+          <div class="label" id="heroLabel">Forecast closing balance, 13 weeks (most likely)</div>
+          <div class="amount" id="heroAmount">£8,420</div>
+        </div>
+        <div class="hero-status" id="heroStatus">Runway: 9 weeks at current burn</div>
+      </div>
+
+      <div class="scenario-toggle" id="scenarioToggle">
+        <button class="scenario-btn" data-scenario="worst">Worst case</button>
+        <button class="scenario-btn active" data-scenario="likely">Most likely</button>
+        <button class="scenario-btn" data-scenario="best">Best case</button>
+      </div>
+
+      <div class="stat-row">
+        <div class="stat"><div class="label">Current balance</div><div class="val" id="statBalance">£14,260</div></div>
+        <div class="stat"><div class="label">Avg weekly inflow</div><div class="val pos" id="statInflow">+£3,180</div></div>
+        <div class="stat"><div class="label">Avg weekly outflow</div><div class="val neg" id="statOutflow">−£3,640</div></div>
+      </div>
+
+      <div class="chart-section">
+        <h2 class="section-title" id="chartSectionTitle">Forecast — 13 weeks</h2>
+        <div class="period-toggle" id="periodToggle">
+          <button class="period-btn" data-period="daily">Daily</button>
+          <button class="period-btn active" data-period="weekly">Weekly</button>
+          <button class="period-btn" data-period="30">30 days</button>
+          <button class="period-btn" data-period="60">60 days</button>
+          <button class="period-btn" data-period="90">90 days</button>
+        </div>
+        <div class="chart-wrap">
+          <svg id="forecastChart" viewBox="0 0 860 220" width="100%" style="display:block;font-family:'IBM Plex Mono',monospace;">
+            <line x1="40" y1="190" x2="840" y2="190" stroke="#DAD4C4" stroke-width="1"/>
+            <line x1="40" y1="10" x2="40" y2="190" stroke="#DAD4C4" stroke-width="1"/>
+            <text id="axisStart" x="40" y="204" font-size="10" fill="#5B6670">W1</text>
+            <text id="axisMid" x="406" y="204" font-size="10" fill="#5B6670" text-anchor="middle">W7</text>
+            <text id="axisEnd" x="830" y="204" font-size="10" fill="#5B6670" text-anchor="end">W13</text>
+            <polyline id="lineWorst" fill="none" stroke="#A23E34" stroke-width="1.5" stroke-dasharray="4,3" points=""/>
+            <polyline id="lineLikely" fill="none" stroke="#1F7A6C" stroke-width="2.5" points=""/>
+            <polyline id="lineBest" fill="none" stroke="#C97A3D" stroke-width="1.5" stroke-dasharray="4,3" points=""/>
+          </svg>
+          <div class="legend">
+            <span><span class="sw" style="background:#A23E34;"></span>Worst case</span>
+            <span><span class="sw" style="background:#1F7A6C;"></span>Most likely</span>
+            <span><span class="sw" style="background:#C97A3D;"></span>Best case</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="chart-section">
+        <h2 class="section-title" id="ledgerTitle">Weekly cash register (most likely)</h2>
+        <div class="ledger">
+          <div class="ledger-row head"><span>Week</span><span>Position</span><span style="text-align:right;">Balance</span><span style="text-align:center;">Health</span></div>
+          <div id="ledgerBody"></div>
+        </div>
+      </div>
+
+      <div class="chart-section">
+        <h2 class="section-title">Recent transactions</h2>
+        <div class="recent-list" id="recentList"></div>
+      </div>
+    </div>
+
+    <!-- UPLOAD BILL (simulated OCR) -->
+    <div class="view" id="view-upload" style="display:none;">
+      <div class="page-head">
+        <p class="eyebrow">Bill scanning</p>
+        <h1>Upload bill</h1>
+        <p class="sub">Upload a photo or PDF of a bill or invoice and FlowSight will read it and draft a transaction for you to check. (Demo — no file leaves this browser tab; extracted values shown are illustrative sample data.)</p>
+      </div>
+
+      <div class="dropzone" id="dropzone">
+        <input type="file" id="billFileInput" accept="image/*,.pdf">
+        <div class="dz-icon">[⇧]</div>
+        <div class="dz-title">Drop a bill here, or click to choose a file</div>
+        <div class="dz-sub">JPG, PNG or PDF — any file works in this demo</div>
+      </div>
+
+      <div class="scan-status" id="scanStatus" style="display:none;margin-top:18px;">
+        <div class="spinner"></div>
+        <div>
+          <div class="st-text">Reading document…</div>
+          <div class="st-sub">Extracting supplier, amount, date and category</div>
+        </div>
+      </div>
+
+      <div id="extractResult" style="margin-top:18px;"></div>
+    </div>
+
+    <!-- INPUT -->
+    <div class="view" id="view-input" style="display:none;">
+      <div class="page-head">
+        <p class="eyebrow">Transactions</p>
+        <h1>Add transaction</h1>
+        <p class="sub">Log expected or actual cash movements to refine your forecast. (Prototype — entries are kept in this browser tab only.)</p>
+      </div>
+
+      <div class="form-card">
+        <div class="form-grid-2">
+          <div class="form-row">
+            <label for="txDesc">Description</label>
+            <input type="text" id="txDesc" placeholder="e.g. Till takings — w/e 4 Jul">
+          </div>
+          <div class="form-row">
+            <label for="txType">Type</label>
+            <select id="txType">
+              <option value="in">Money in</option>
+              <option value="out">Money out</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-grid-2">
+          <div class="form-row">
+            <label for="txAmount">Amount (<span id="currSymTx">£</span>)</label>
+            <input type="number" id="txAmount" placeholder="0.00" min="0" step="0.01">
+          </div>
+          <div class="form-row">
+            <label for="txDate">Expected date</label>
+            <input type="date" id="txDate">
+          </div>
+        </div>
+        <div class="form-row">
+          <label for="txCategory">Category</label>
+          <select id="txCategory">
+            <option>Till takings / sales</option>
+            <option>Wholesaler / stock payment</option>
+            <option>Staff wages</option>
+            <option>Rent and business rates</option>
+            <option>Licensing fee</option>
+            <option>Energy and utilities</option>
+            <option>Tax (VAT / PAYE)</option>
+            <option>Other</option>
+          </select>
+          <div class="hint">Categories help FlowSight group your cash flow drivers in the forecast.</div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:8px;">
+          <button class="btn" onclick="addTransaction()">Add to forecast</button>
+          <button class="btn secondary" onclick="resetForm()">Clear</button>
+        </div>
+      </div>
+
+      <h2 class="section-title">Entries this session</h2>
+      <div class="recent-list" id="sessionList">
+        <div class="recent-item"><span class="desc" style="color:#5B6670;">No entries added yet — new transactions appear here.</span></div>
+      </div>
+    </div>
+
+    <!-- AI INSIGHTS -->
+    <div class="view" id="view-insights" style="display:none;">
+      <div class="page-head">
+        <p class="eyebrow">Forecast intelligence</p>
+        <h1>AI insights</h1>
+        <p class="sub">An automated read of your 30/60/90-day cash position, using the scenario currently selected on your Dashboard.</p>
+      </div>
+
+      <div class="ai-banner"><span class="ai-badge">DEMO</span>These insights are generated in this browser from simple rules applied to your forecast data, to demonstrate how an AI recommendation engine could work inside FlowSight. No external AI service is called in this prototype.</div>
+
+      <div class="insight-summary">
+        <div class="is-label">Recommended action</div>
+        <div class="is-text" id="insightSummaryText">—</div>
+      </div>
+
+      <div class="insight-cards" id="insightCards"></div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div class="view" id="view-settings" style="display:none;">
+      <div class="page-head">
+        <p class="eyebrow">Configuration</p>
+        <h1>Settings</h1>
+        <p class="sub">Business profile and forecast preferences.</p>
+      </div>
+
+      <div class="form-card">
+        <h2 class="section-title" style="margin-bottom:18px;">Business profile</h2>
+        <div class="form-grid-2">
+          <div class="form-row">
+            <label for="bizName">Business name</label>
+            <input type="text" id="bizName" value="Riverside Wines & Spirits">
+          </div>
+          <div class="form-row">
+            <label for="bizType">Business type</label>
+            <select id="bizType">
+              <option>Sole trader</option>
+              <option>Limited company</option>
+              <option>Partnership</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <label for="currencySelect">Currency</label>
+          <select id="currencySelect">
+            <option value="GBP" selected>£ British Pound (GBP)</option>
+            <option value="EUR">€ Euro (EUR)</option>
+            <option value="USD">$ US Dollar (USD)</option>
+            <option value="LKR">LKR Sri Lankan Rupee (LKR)</option>
+          </select>
+          <div class="hint">Changes the currency symbol shown across the whole prototype. Figures stay the same number — this doesn't convert between currencies.</div>
+        </div>
+        <div class="form-row">
+          <label for="bizBank">Connected bank balance</label>
+          <input type="text" id="bizBank" value="£14,260.00" disabled style="opacity:0.6;">
+          <div class="hint">Open banking connection — read only in this prototype.</div>
+        </div>
+      </div>
+
+      <div class="form-card">
+        <h2 class="section-title" style="margin-bottom:4px;">Forecast preferences</h2>
+        <div class="toggle-row">
+          <div><div class="t-label">Low cash alerts</div><div class="t-sub">Notify when forecast balance drops below threshold</div></div>
+          <div class="switch on" onclick="this.classList.toggle('on')"><div class="dot"></div></div>
+        </div>
+        <div class="toggle-row">
+          <div><div class="t-label">Weekly summary email</div><div class="t-sub">Sunday evening forecast digest</div></div>
+          <div class="switch on" onclick="this.classList.toggle('on')"><div class="dot"></div></div>
+        </div>
+        <div class="toggle-row">
+          <div><div class="t-label">Show best-case scenario by default</div><div class="t-sub">Pre-select best case on dashboard load</div></div>
+          <div class="switch" onclick="this.classList.toggle('on')"><div class="dot"></div></div>
+        </div>
+        <div class="form-row" style="margin-top:18px;">
+          <label for="thresh">Low balance threshold (<span id="currSymThresh">£</span>)</label>
+          <input type="number" id="thresh" value="2000">
+          <div class="hint">FlowSight flags any forecast week that dips below this amount.</div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;">
+        <button class="btn" onclick="alert('Settings saved (prototype — this tab only).')">Save settings</button>
+        <button class="btn secondary">Cancel</button>
+      </div>
+    </div>
+
+    <div class="data-note">FlowSight forecast figures shown here are illustrative sample data for a pre-approval prototype. The underlying forecasting model draws on published UK SME cash flow research (FSB, ONS, British Business Bank) for assumptions on payment terms and seasonal variance.</div>
+    <div class="data-note" style="border-top:none;padding-top:0;margin-top:8px;">Once you've had a chance to explore the Dashboard, Add transaction, and Settings pages, please use the separate survey link you were sent to share your feedback. Thank you for helping test FlowSight.</div>
+  </div>
+</div>
+
+<script>
+  const threshold = 2000;
+  const currencySymbols = {GBP:'£', EUR:'€', USD:'$', LKR:'LKR '};
+  let currencySymbol = '£';
+  function fmtMoney(n){
+    return currencySymbol + Math.round(n).toLocaleString();
+  }
+  const labels = ['W1','W2','W3','W4','W5','W6','W7','W8','W9','W10','W11','W12','W13'];
+
+  function genWeeks(seed, drift){
+    let bal = 11400, out = [];
+    for(let i=1;i<=13;i++){
+      bal += (Math.sin(i*seed)*900) + drift;
+      out.push(Math.round(bal));
+    }
+    return out;
+  }
+
+  const forecasts = {
+    best:   genWeeks(0.5, -120),
+    likely: genWeeks(0.5, -380),
+    worst:  genWeeks(0.5, -640)
+  };
+
+  const currentBalance = 14260;
+  const PERIODS = {
+    daily:  {weeks:null, heroLabel:'14 days',   ledgerWord:'Daily',   unit:'days',  chartMax:16500},
+    weekly: {weeks:13,   heroLabel:'13 weeks',  ledgerWord:'Weekly',  unit:'weeks', chartMax:13000},
+    '30':   {weeks:4,    heroLabel:'~30 days',  ledgerWord:'30-day',  unit:'weeks', chartMax:13000},
+    '60':   {weeks:9,    heroLabel:'~60 days',  ledgerWord:'60-day',  unit:'weeks', chartMax:13000},
+    '90':   {weeks:13,   heroLabel:'~90 days',  ledgerWord:'90-day',  unit:'weeks', chartMax:13000}
+  };
+
+  function genDailySeries(scenario){
+    const w = forecasts[scenario];
+    const days = [], dayLabels = [];
+    for(let d=1; d<=7; d++){
+      const t = d/7;
+      days.push(Math.round(currentBalance + (w[0]-currentBalance)*t + Math.sin(d*1.3)*140));
+      dayLabels.push('D'+d);
+    }
+    for(let d=1; d<=7; d++){
+      const t = d/7;
+      days.push(Math.round(w[0] + (w[1]-w[0])*t + Math.sin((d+7)*1.3)*140));
+      dayLabels.push('D'+(d+7));
+    }
+    return {values: days, labels: dayLabels};
+  }
+
+  function getSeries(scenario, periodKey){
+    if(periodKey === 'daily') return genDailySeries(scenario);
+    const n = PERIODS[periodKey].weeks;
+    return {values: forecasts[scenario].slice(0, n), labels: labels.slice(0, n)};
+  }
+
+  const healthColor = {ok:'#1F7A6C', warn:'#C97A3D', danger:'#A23E34'};
+  const healthBg = {ok:'var(--teal-bg)', warn:'var(--amber-bg)', danger:'var(--brick-bg)'};
+  const healthLabel = {ok:'Healthy', warn:'Watch', danger:'Critical'};
+  const scenarioLabel = {worst:'worst case', likely:'most likely', best:'best case'};
+
+  function healthOf(bal){
+    if(bal < threshold) return 'danger';
+    if(bal < threshold*2.5) return 'warn';
+    return 'ok';
+  }
+
+  function toPoints(values, max){
+    const xStep = (840-40)/(values.length-1);
+    const yMax = 190, yMin = 10;
+    return values.map((v,i) => {
+      const x = 40 + i*xStep;
+      const norm = Math.max(0, Math.min(1, v/max));
+      const y = yMax - norm*(yMax-yMin);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(' ');
+  }
+
+  let currentPeriod = 'weekly';
+
+  function renderChart(){
+    const cfg = PERIODS[currentPeriod];
+    const sWorst = getSeries('worst', currentPeriod);
+    const sLikely = getSeries('likely', currentPeriod);
+    const sBest = getSeries('best', currentPeriod);
+    document.getElementById('lineWorst').setAttribute('points', toPoints(sWorst.values, cfg.chartMax));
+    document.getElementById('lineLikely').setAttribute('points', toPoints(sLikely.values, cfg.chartMax));
+    document.getElementById('lineBest').setAttribute('points', toPoints(sBest.values, cfg.chartMax));
+    const lbls = sLikely.labels;
+    document.getElementById('axisStart').textContent = lbls[0];
+    document.getElementById('axisMid').textContent = lbls[Math.floor((lbls.length-1)/2)];
+    document.getElementById('axisEnd').textContent = lbls[lbls.length-1];
+    document.getElementById('chartSectionTitle').textContent = `Forecast — ${cfg.heroLabel}`;
+  }
+
+  let currentScenario = 'likely';
+
+  function renderScenario(){
+    const cfg = PERIODS[currentPeriod];
+    const series = getSeries(currentScenario, currentPeriod);
+    const values = series.values;
+    const closing = values[values.length-1];
+    const h = healthOf(closing);
+    const heroAmount = document.getElementById('heroAmount');
+    heroAmount.textContent = fmtMoney(closing);
+    heroAmount.style.color = healthColor[h];
+    document.getElementById('heroLabel').textContent = `Forecast closing balance, ${cfg.heroLabel} (${scenarioLabel[currentScenario]})`;
+
+    const runwayIdx = values.findIndex(v => v < threshold);
+    const heroStatus = document.getElementById('heroStatus');
+    if(runwayIdx === -1){
+      heroStatus.textContent = `${values.length}+ ${cfg.unit} at current burn`;
+      heroStatus.style.background = healthBg.ok;
+      heroStatus.style.color = healthColor.ok;
+    } else {
+      heroStatus.textContent = `Runway: ${runwayIdx} ${cfg.unit} at current burn`;
+      heroStatus.style.background = healthBg.warn;
+      heroStatus.style.color = healthColor.warn;
+    }
+
+    document.getElementById('ledgerTitle').textContent = `${cfg.ledgerWord} cash register (${scenarioLabel[currentScenario]})`;
+    const ledgerBody = document.getElementById('ledgerBody');
+    ledgerBody.innerHTML = '';
+    values.forEach((bal, i) => {
+      const h2 = healthOf(bal);
+      const pct = Math.max(4, Math.min(100, (bal/12000)*100));
+      const el = document.createElement('div');
+      el.className = 'ledger-row';
+      el.innerHTML = `
+        <span class="ledger-week">${series.labels[i]}</span>
+        <span class="ledger-bar-track"><span class="ledger-bar" style="width:${pct}%;background:${healthColor[h2]};"></span></span>
+        <span class="ledger-amount">${fmtMoney(bal)}</span>
+        <span class="ledger-tag" style="background:${healthBg[h2]};color:${healthColor[h2]};">${healthLabel[h2]}</span>
+      `;
+      ledgerBody.appendChild(el);
+    });
+    renderInsights();
+  }
+
+  document.getElementById('periodToggle').addEventListener('click', (e) => {
+    const btn = e.target.closest('.period-btn');
+    if(!btn) return;
+    document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentPeriod = btn.dataset.period;
+    renderChart();
+    renderScenario();
+  });
+
+  document.getElementById('scenarioToggle').addEventListener('click', (e) => {
+    const btn = e.target.closest('.scenario-btn');
+    if(!btn) return;
+    document.querySelectorAll('.scenario-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentScenario = btn.dataset.scenario;
+    renderScenario();
+  });
+
+  // ---- AI insights (rule-based demo, no external AI call) ----
+  const horizonPoints = [
+    {label:'30 days', idx:3},
+    {label:'60 days', idx:8},
+    {label:'90 days', idx:12}
+  ];
+
+  function insightText(health){
+    if(health === 'danger') return 'Projected to dip below your low-balance threshold. Consider arranging short-term overdraft cover, or holding back a non-essential stock order until takings catch up.';
+    if(health === 'warn') return 'Trending close to your threshold. Worth keeping an eye on upcoming wholesaler payments and any discretionary spend in this window.';
+    return 'Projected to stay comfortably above your threshold. Could be a good window to reinvest surplus in stock ahead of a busy period.';
+  }
+
+  function renderInsights(){
+    const cardsEl = document.getElementById('insightCards');
+    const summaryEl = document.getElementById('insightSummaryText');
+    if(!cardsEl || !summaryEl) return;
+    const values = forecasts[currentScenario];
+    cardsEl.innerHTML = '';
+    let worstHorizon = null;
+    horizonPoints.forEach(hp => {
+      const bal = values[hp.idx];
+      const h = healthOf(bal);
+      if(h !== 'ok' && (!worstHorizon || hp.idx < worstHorizon.idx)) worstHorizon = {...hp, bal, h};
+      const card = document.createElement('div');
+      card.className = 'insight-card ' + (h === 'ok' ? '' : h);
+      card.innerHTML = `
+        <div class="ic-horizon">${hp.label} (${scenarioLabel[currentScenario]})</div>
+        <div class="ic-amount" style="color:${healthColor[h]};">${fmtMoney(bal)}</div>
+        <div class="ic-text">${insightText(h)}</div>
+      `;
+      cardsEl.appendChild(card);
+    });
+    if(worstHorizon){
+      summaryEl.textContent = `Your ${worstHorizon.label} projection (${scenarioLabel[currentScenario]} case) is the one to watch — balance is expected to fall to around ${fmtMoney(worstHorizon.bal)}. ${worstHorizon.h === 'danger' ? 'Consider lining up a cash buffer or short-term finance now, before this window arrives.' : 'Nothing urgent yet, but keep this window on your radar.'}`;
+    } else {
+      summaryEl.textContent = `Across 30, 60 and 90 days, your ${scenarioLabel[currentScenario]}-case forecast stays healthy — no immediate action needed. Re-check this after adding any new bills or transactions.`;
+    }
+  }
+
+  renderChart();
+  renderScenario();
+  renderInsights();
+
+  // ---- Currency ----
+  function renderCurrency(){
+    document.getElementById('statBalance').textContent = fmtMoney(14260);
+    document.getElementById('statInflow').textContent = '+' + fmtMoney(3180);
+    document.getElementById('statOutflow').textContent = '−' + fmtMoney(3640);
+    document.getElementById('bizBank').value = currencySymbol + '14,260.00';
+    document.getElementById('currSymTx').textContent = currencySymbol.trim();
+    document.getElementById('currSymThresh').textContent = currencySymbol.trim();
+    const ocrSym = document.getElementById('currSymOcr');
+    if(ocrSym) ocrSym.textContent = currencySymbol.trim();
+  }
+  document.getElementById('currencySelect').addEventListener('change', (e) => {
+    currencySymbol = currencySymbols[e.target.value] || '£';
+    renderCurrency();
+    renderChart();
+    renderScenario();
+    renderInsights();
+    renderRecent();
+    if(typeof renderSession === 'function') renderSession();
+  });
+  renderCurrency();
+
+  // ---- Upload bill (simulated OCR — no file is actually read or transmitted) ----
+  const sampleBills = [
+    {vendor:'Bestway Wholesale', amount:842.50, category:'Wholesaler / stock payment', type:'out'},
+    {vendor:'Liverpool City Council — Business Rates', amount:410.00, category:'Rent and business rates', type:'out'},
+    {vendor:'Scottish & Newcastle Distributors', amount:1180.00, category:'Wholesaler / stock payment', type:'out'},
+    {vendor:'United Utilities', amount:126.40, category:'Energy and utilities', type:'out'},
+    {vendor:'Premises Licence Renewal — local authority', amount:295.00, category:'Licensing fee', type:'out'}
+  ];
+  let billCycle = 0;
+  const dropzone = document.getElementById('dropzone');
+  const billFileInput = document.getElementById('billFileInput');
+  const scanStatus = document.getElementById('scanStatus');
+  const extractResult = document.getElementById('extractResult');
+
+  dropzone.addEventListener('click', () => billFileInput.click());
+  dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('drag'); });
+  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+  dropzone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropzone.classList.remove('drag');
+    if(e.dataTransfer.files.length) runSimulatedScan();
+  });
+  billFileInput.addEventListener('change', () => {
+    if(billFileInput.files.length) runSimulatedScan();
+  });
+
+  function runSimulatedScan(){
+    extractResult.innerHTML = '';
+    scanStatus.style.display = 'flex';
+    setTimeout(() => {
+      scanStatus.style.display = 'none';
+      showExtractedBill();
+    }, 1500);
+  }
+
+  function todayPlus(days){
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    return d.toISOString().split('T')[0];
+  }
+
+  function showExtractedBill(){
+    const bill = sampleBills[billCycle % sampleBills.length];
+    billCycle++;
+    const suggestedDate = todayPlus(7);
+    extractResult.innerHTML = `
+      <div class="extract-card">
+        <div class="extract-badge">SCAN COMPLETE</div>
+        <div class="form-grid-2">
+          <div class="form-row">
+            <label for="ocrVendor">Supplier / description</label>
+            <input type="text" id="ocrVendor" value="${bill.vendor}">
+          </div>
+          <div class="form-row">
+            <label for="ocrType">Type</label>
+            <select id="ocrType">
+              <option value="out" ${bill.type==='out'?'selected':''}>Money out</option>
+              <option value="in" ${bill.type==='in'?'selected':''}>Money in</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-grid-2">
+          <div class="form-row">
+            <label for="ocrAmount">Amount (<span id="currSymOcr">${currencySymbol.trim()}</span>)</label>
+            <input type="number" id="ocrAmount" value="${bill.amount}" step="0.01">
+          </div>
+          <div class="form-row">
+            <label for="ocrDate">Due date</label>
+            <input type="date" id="ocrDate" value="${suggestedDate}">
+          </div>
+        </div>
+        <div class="form-row">
+          <label for="ocrCategory">Category</label>
+          <select id="ocrCategory">
+            <option ${bill.category==='Till takings / sales'?'selected':''}>Till takings / sales</option>
+            <option ${bill.category==='Wholesaler / stock payment'?'selected':''}>Wholesaler / stock payment</option>
+            <option ${bill.category==='Staff wages'?'selected':''}>Staff wages</option>
+            <option ${bill.category==='Rent and business rates'?'selected':''}>Rent and business rates</option>
+            <option ${bill.category==='Licensing fee'?'selected':''}>Licensing fee</option>
+            <option ${bill.category==='Energy and utilities'?'selected':''}>Energy and utilities</option>
+            <option ${bill.category==='Tax (VAT / PAYE)'?'selected':''}>Tax (VAT / PAYE)</option>
+            <option ${bill.category==='Other'?'selected':''}>Other</option>
+          </select>
+          <div class="hint">Double-check these details before adding — you can edit any field.</div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:8px;">
+          <button class="btn" onclick="confirmExtractedBill()">Add to forecast</button>
+          <button class="btn secondary" onclick="document.getElementById('extractResult').innerHTML=''; billFileInput.value='';">Discard</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function confirmExtractedBill(){
+    const desc = document.getElementById('ocrVendor').value.trim();
+    const type = document.getElementById('ocrType').value;
+    const amount = parseFloat(document.getElementById('ocrAmount').value);
+    const date = document.getElementById('ocrDate').value;
+    if(!desc || !amount){ alert('Check the supplier and amount fields.'); return; }
+    sessionEntries.push({desc, type, amount, date});
+    recent.unshift({d:desc, a: type==='in'?amount:-amount, t:type});
+    renderSession();
+    renderRecent();
+    extractResult.innerHTML = '<div class="hint" style="margin-top:6px;">Added to this session\'s transactions — view it under "Add transaction".</div>';
+    billFileInput.value = '';
+  }
+
+  const recent = [
+    {d:'Till takings — w/e 27 Jun', a:3120, t:'in'},
+    {d:'Wholesaler — Bestway delivery', a:-1640, t:'out'},
+    {d:'Staff wages — June', a:-1180, t:'out'},
+    {d:'Till takings — w/e 20 Jun', a:2870, t:'in'},
+    {d:'Business rates', a:-410, t:'out'},
+  ];
+  const recentList = document.getElementById('recentList');
+  function renderRecent(){
+    recentList.innerHTML = '';
+    recent.forEach(r => {
+      const el = document.createElement('div');
+      el.className = 'recent-item';
+      el.innerHTML = `<span class="desc">${r.d}</span><span class="amt ${r.t}">${r.t==='in'?'+':'−'}${fmtMoney(Math.abs(r.a))}</span>`;
+      recentList.appendChild(el);
+    });
+  }
+  renderRecent();
+
+  document.querySelectorAll('.nav-item').forEach(item => {
+    item.addEventListener('click', () => {
+      document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+      item.classList.add('active');
+      document.querySelectorAll('.view').forEach(v => v.style.display = 'none');
+      document.getElementById('view-' + item.dataset.view).style.display = 'block';
+    });
+  });
+
+  let sessionEntries = [];
+  function addTransaction(){
+    const desc = document.getElementById('txDesc').value.trim();
+    const type = document.getElementById('txType').value;
+    const amount = parseFloat(document.getElementById('txAmount').value);
+    const date = document.getElementById('txDate').value;
+    if(!desc || !amount){ alert('Enter a description and amount.'); return; }
+    sessionEntries.push({desc, type, amount, date});
+    recent.unshift({d:desc, a: type==='in'?amount:-amount, t:type});
+    renderSession();
+    renderRecent();
+    resetForm();
+  }
+  function resetForm(){
+    document.getElementById('txDesc').value='';
+    document.getElementById('txAmount').value='';
+    document.getElementById('txDate').value='';
+  }
+  function renderSession(){
+    const list = document.getElementById('sessionList');
+    if(sessionEntries.length === 0){
+      list.innerHTML = '<div class="recent-item"><span class="desc" style="color:#5B6670;">No entries added yet — new transactions appear here.</span></div>';
+      return;
+    }
+    list.innerHTML = sessionEntries.map(e => `
+      <div class="recent-item">
+        <span class="desc">${e.desc}${e.date ? ' · ' + e.date : ''}</span>
+        <span class="amt ${e.type}">${e.type==='in'?'+':'−'}${fmtMoney(e.amount)}</span>
+      </div>
+    `).join('');
+  }
+
+  // ---- Export to Excel ----
+  function exportToExcel(){
+    const wb = XLSX.utils.book_new();
+
+    const forecastRows = [['Week', 'Worst case', 'Most likely', 'Best case']];
+    for(let i = 0; i < 13; i++){
+      forecastRows.push([labels[i], forecasts.worst[i], forecasts.likely[i], forecasts.best[i]]);
+    }
+    const wsForecast = XLSX.utils.aoa_to_sheet(forecastRows);
+    XLSX.utils.book_append_sheet(wb, wsForecast, 'Forecast (13-week)');
+
+    const cfg = PERIODS[currentPeriod];
+    const series = getSeries(currentScenario, currentPeriod);
+    const ledgerRows = [['Period', 'Forecast balance', 'Health']];
+    series.values.forEach((bal, i) => {
+      ledgerRows.push([series.labels[i], bal, healthLabel[healthOf(bal)]]);
+    });
+    const wsLedger = XLSX.utils.aoa_to_sheet(ledgerRows);
+    XLSX.utils.book_append_sheet(wb, wsLedger, `Cash register (${scenarioLabel[currentScenario]})`);
+
+    const txRows = [['Description', 'Type', 'Amount', 'Date']];
+    recent.slice().reverse().forEach(r => {
+      txRows.push([r.d, r.t === 'in' ? 'Money in' : 'Money out', r.a, '']);
+    });
+    sessionEntries.forEach(e => {
+      txRows.push([e.desc, e.type === 'in' ? 'Money in' : 'Money out', e.type === 'in' ? e.amount : -e.amount, e.date || '']);
+    });
+    const wsTx = XLSX.utils.aoa_to_sheet(txRows);
+    XLSX.utils.book_append_sheet(wb, wsTx, 'Transactions');
+
+    const bizNameEl = document.getElementById('bizName');
+    const bizName = (bizNameEl && bizNameEl.value ? bizNameEl.value : 'FlowSight').replace(/[^a-z0-9]+/gi, '_');
+    XLSX.writeFile(wb, `${bizName}_FlowSight_export.xlsx`);
+  }
+
+  // FlowSight prototype — built by Dilki Ishara, University of Chester MSc FinTech & Business Analytics. you will never win unless you try. 
+</script>
+</body>
+</html>
